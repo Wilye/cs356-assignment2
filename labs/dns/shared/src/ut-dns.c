@@ -48,29 +48,29 @@ int main() {
     TDNSCreateZone(tdns_ctx, "utexas.edu");
     TDNSAddRecord(tdns_ctx, "utexas.edu", "www", "123.123.123.123", NULL);
     TDNSAddRecord(tdns_ctx, "utexas.edu", "cs", NULL, "ns.cs.utexas.edu");
-    TDNSAddRecord(tdns_ctx, "utexas.edu", "ns.cs", "111.111.111.111", NULL);
+    TDNSAddRecord(tdns_ctx, "cs.utexas.edu", "ns", "111.111.111.111", NULL);
 
     /* 5. Enter a loop to receive incoming DNS messages */
     /*    and parse each message using TDNSParseMsg(). */
 
     struct TDNSParseResult parsed;
-    bool query = false;
+    bool is_response = false;
 
     while (true) { 
-        ssize_t size = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
-        query = TDNSParseMsg(buffer, size, &parsed);
+        ssize_t size = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr, &client_len);
+        is_response = TDNSParseMsg(buffer, size, &parsed);
+
+            /* 6. If the message is a query for A, AAAA, or NS records: */
+            /*      - Look up the record with TDNSFind() and send a response. */
+            /*    Otherwise, ignore the message. */
+
+            struct TDNSFindResult result;
+            if (!is_response) {
+                TDNSFind(tdns_ctx, &parsed, &result);
+                sendto(sockfd, result.serialized, result.len, 0, (struct sockaddr *)&client_addr, client_len);
+            }
+
     }
     
-
-    /* 6. If the message is a query for A, AAAA, or NS records: */
-    /*      - Look up the record with TDNSFind() and send a response. */
-    /*    Otherwise, ignore the message. */
-
-    struct TDNSFindResult result;
-    if (query) {
-        TDNSFind(tdns_ctx, &parsed, &result);
-        sendto(sockfd, result.serialized, result.len, 0, (struct sockaddr *)&client_addr, sizeof(client_addr));
-    }
-
     return 0;
 }
