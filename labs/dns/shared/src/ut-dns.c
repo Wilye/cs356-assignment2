@@ -66,8 +66,10 @@ int main() {
 
             struct TDNSFindResult result;
             if (!is_response) {
-                TDNSFind(tdns_ctx, &parsed, &result);
-                sendto(sockfd, result.serialized, result.len, 0, (struct sockaddr *)&client_addr, client_len);
+                if (parsed.qtype == A || parsed.qtype == AAAA || parsed.qtype == NS) {
+                    TDNSFind(tdns_ctx, &parsed, &result);
+                    sendto(sockfd, result.serialized, result.len, 0, (struct sockaddr *)&client_addr, client_len);
+                }
             }
 
     }
