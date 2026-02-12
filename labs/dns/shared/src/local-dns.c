@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "lib/tdns/tdns-c.h"
+#include <stdbool.h>
 
 /* DNS header structure */
 struct dnsheader {
@@ -58,23 +59,81 @@ int main() {
     /* PART 2 TODO: Implement a local iterative DNS server */
 
     /* 1. Create a UDP socket. */
+    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
     /* 2. Initialize the server address (INADDR_ANY, DNS_PORT) */
     /*    and bind the socket to this address. */
+    bzero((char *) &server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(DNS_PORT);
+
+    bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
 
     /* 3. Initialize a TDNS server context using TDNSInit(). */
     /*    This context will be used for all TDNS library calls. */
+    struct TDNSServerContext *tdns_ctx = TDNSInit();
 
     /* 4. Create the edu zone with TDNSCreateZone(). */
     /*    - Add the UT nameserver ns.utexas.edu using TDNSAddRecord(). */
     /*    - Add an A record for ns.utexas.edu using TDNSAddRecord(). */
+	TDNSCreateZone(tdns_ctx, "edu");
+	TDNSAddRecord(tdns_ctx, "edu", "utexas", NULL, "ns.utexas.edu");
+	TDNSAddRecord(tdns_ctx, "edu", "ns", "40.0.0.20", NULL);
 
     /* 5. Continuously receive incoming DNS messages */
     /*    and parse them using TDNSParseMsg(). */
+    struct TDNSParseResult parsed;
+    bool is_response = false;
 
-    /* 6. If the message is a query for A, AAAA, or NS records: */
-    /*      - Look up the record using TDNSFind(). */
-    /*      - Ignore all other query types. */
+    while (true) { 
+        ssize_t size = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&client_addr, &client_len);
+        is_response = TDNSParseMsg(buffer, size, &parsed);
+
+        	/* 6. If the message is a query for A, AAAA, or NS records: */
+			/*      - Look up the record using TDNSFind(). */
+			/*      - Ignore all other query types. */
+            struct TDNSFindResult result;
+            if (!is_response) {
+				if (parsed.qtype == A || parsed.qtype == AAAA || parsed.qtype == NS) {
+					bool found_record = TDNSFind(tdns_ctx, &parsed, &result);
+
+					const char* nsIP = parsed.nsIP;
+
+					if (found_record && nsIP) {
+						// delegation
+						// client_addr contains the address of the client that sent the query, so we need
+						// to create a new sockaddr_in to forward to a new location
+						struct sockaddr_in ns_addr;
+						bzero((char *)&ns_addr, sizeof(ns_addr));
+						ns_addr.sin_family = AF_INET;
+						ns_addr.sin_port = htons(DNS_PORT);
+						// convert IP address string into binary format that sockaddr_in expects
+						inet_pton(AF_INET, nsIP, &ns_addr.sin_addr);
+						
+						// forward original query to the delegated nameserver
+						sendto(sockfd, buffer, size, 0, (struct sockaddr *)&ns_addr,  sizeof(ns_addr));
+
+						// save context
+						putAddrQID(tdns_ctx, parsed.dh->id, &client_addr);
+						putNSQID(tdns_ctx, parsed.dh->id, nsIP, parsed.nsDomain);
+					} else if (found_record) {
+						// direct answer
+						sendto(sockfd, result.serialized, result.len, 0, (struct sockaddr *)&client_addr, client_len);
+					} else {
+						// record not found
+						sendto(sockfd, result.serialized, result.len, 0, (struct sockaddr *)&client_addr, client_len);
+					}
+
+				}
+            } else if (parsed.dh->aa) {
+
+			} else {
+				
+			}
+
+    }
+
 
     /*      a. If the record exists and indicates delegation: */
     /*         - Send an iterative query to the delegated nameserver. */
