@@ -43,8 +43,8 @@ int main() {
     /*    - Add an A record for cs.utexas.edu using TDNSAddRecord(). */
     /*    - Add an A record for aquila.cs.utexas.edu. */
     TDNSCreateZone(tdns_ctx, "cs.utexas.edu");
-    TDNSAddRecord(tdns_ctx, "cs.utexas.edu", "", "1.2.3.4", NULL);
-    TDNSAddRecord(tdns_ctx, "cs.utexas.edu", "aquila", "1.2.3.5", NULL);
+    TDNSAddRecord(tdns_ctx, "cs.utexas.edu", "", "50.0.0.10", NULL);
+    TDNSAddRecord(tdns_ctx, "cs.utexas.edu", "aquila", "50.0.0.20", NULL);
 
     /* 5. Enter a loop to receive incoming DNS messages */
     /*    and parse each message using TDNSParseMsg(). */

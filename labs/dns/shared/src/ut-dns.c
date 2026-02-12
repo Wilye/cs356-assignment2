@@ -46,7 +46,7 @@ int main() {
     /*    - Add an A record for ns.cs.utexas.edu. */
 
     TDNSCreateZone(tdns_ctx, "utexas.edu");
-    TDNSAddRecord(tdns_ctx, "utexas.edu", "www", "123.123.123.123", NULL);
+    TDNSAddRecord(tdns_ctx, "utexas.edu", "www", "40.0.0.10", NULL);
     TDNSAddRecord(tdns_ctx, "utexas.edu", "cs", NULL, "ns.cs.utexas.edu");
     TDNSAddRecord(tdns_ctx, "cs.utexas.edu", "ns", "50.0.0.30", NULL);
 

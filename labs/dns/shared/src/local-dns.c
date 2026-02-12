@@ -79,7 +79,7 @@ int main() {
     /*    - Add an A record for ns.utexas.edu using TDNSAddRecord(). */
 	TDNSCreateZone(tdns_ctx, "edu");
 	TDNSAddRecord(tdns_ctx, "edu", "utexas", NULL, "ns.utexas.edu");
-	TDNSAddRecord(tdns_ctx, "edu", "ns", "40.0.0.20", NULL);
+	TDNSAddRecord(tdns_ctx, "utexas.edu", "ns", "40.0.0.20", NULL);
 
     /* 5. Continuously receive incoming DNS messages */
     /*    and parse them using TDNSParseMsg(). */
@@ -126,10 +126,35 @@ int main() {
 					}
 
 				}
+			// message is an authoritative response
             } else if (parsed.dh->aa) {
+				struct sockaddr_in orig_client;
+				const char *nsIP, *nsDomain;
+				// use original context saved from initial delegation
+				getAddrbyQID(tdns_ctx, parsed.dh->id, &orig_client);
+				getNSbyQID(tdns_ctx, parsed.dh->id, &nsIP, &nsDomain);
 
+				size = TDNSPutNStoMessage(buffer, size, &parsed, nsIP, nsDomain);
+
+				sendto(sockfd, buffer, size, 0, (struct sockaddr *)&orig_client, sizeof(orig_client));
+
+				delAddrQID(tdns_ctx, parsed.dh->id);
+				delNSQID(tdns_ctx, parsed.dh->id);
 			} else {
-				
+				// extract the next query to forward
+				char iter_query[BUFFER_SIZE];
+				ssize_t iter_len = TDNSGetIterQuery(&parsed, iter_query);
+
+				struct sockaddr_in ns_addr;
+				bzero(&ns_addr, sizeof(ns_addr));
+				ns_addr.sin_family = AF_INET;
+				ns_addr.sin_port = htons(DNS_PORT);
+				inet_pton(AF_INET, parsed.nsIP, &ns_addr.sin_addr);
+
+				sendto(sockfd, iter_query, iter_len, 0, (struct sockaddr *)&ns_addr, sizeof(ns_addr));
+
+				// NS info changes at each iteration, but not original client addr
+				putNSQID(tdns_ctx, parsed.dh->id, parsed.nsIP, parsed.nsDomain);
 			}
 
     }
